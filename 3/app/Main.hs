@@ -16,10 +16,10 @@ maxJolt (x:xs) = max (digitToInt x * 10 + digitToInt (maximum xs)) (maxJolt xs)
 
 maxUJolt :: [Char] -> Int
 maxUJolt [] = -1
-maxUJolt x = read $ foldl (incrementJolt) (take 12 x) (drop 12 x)
+maxUJolt x = read $ foldl incrementJolt (take 12 x) (drop 12 x)
 
 incrementJolt :: [Char] -> Char -> [Char]
 incrementJolt x y = maximum $ (map (++ [y]) . removeAny $ x) ++ [x]
 
 removeAny :: [Char] -> [[Char]]
-removeAny x = map (\(a,b) -> a ++ drop 1 b) . zipWith (\a b -> splitAt a b) [0..] . take (length x) . cycle $ [x]
+removeAny x = (map (\ (a, b) -> a ++ tail b) . zipWith splitAt [0 .. ]) (replicate (length x) x)
