@@ -1,40 +1,62 @@
 module Main where
 
 import Data.List
-import Data.Maybe
-import Data.Function
 import Data.Ord
+import qualified Data.Bifunctor
+import GHC.Float
 
 type Vertex = (Float,Float,Float)
+getX :: Vertex -> Float
+getX (x,_,_) = x
+getY :: Vertex -> Float
+getY (_,y,_) = y
+getZ :: Vertex -> Float
+getZ (_,_,z) = z
 
 main :: IO ()
 main = do
-    example <- readFile "./example"
-    puzzle <- readFile "./puzzle"
-    let input = map ((\[x, y, z] -> (x,y,z)) . map read . splitOn ',') $ lines example ::[Vertex]
-    let circuitsWithDistances = map (\x -> (x `getDistances` input,[x])) input
-    let exampleSolution = (!! 10) . tail . iterate shortCircuit $ circuitsWithDistances
-    let puzzleInput = map ((\[x,y,z] -> (x,y,z)) . map read . splitOn ',') $ lines puzzle :: [Vertex]
-    let puzzleSolution = (!! 1001) . tail . iterate shortCircuit . map (\x -> (x `getDistances` puzzleInput,[x])) $ puzzleInput
-    -- mapM_ (print . fst) circuitsWithDistances
-    print . product . take 3 . sortBy (comparing Data.Ord.Down) . map (length . snd) $ exampleSolution
-    print . product . take 3 . sortBy (comparing Data.Ord.Down) . map (length . snd) $ puzzleSolution
-    -- print pairedInput
-    putStrLn "Placeholder"
+    print . (`part1` 10) =<< readFile "./example"
+    print . (`part1` 1000) =<< readFile "./puzzle"
+    print . part2 =<< readFile "./example"
+    print . part2 =<< readFile "./puzzle"
 
-shortCircuit :: [([(Float,Vertex)],[Vertex])] -> [([(Float,Vertex)],[Vertex])]
-shortCircuit [] = []
-shortCircuit s = do
-    let sorted = sortOn (minimumBy (compare `on` fst) . fst) s
-    let (distances, vertices) = head sorted
-    let (_,target) = head distances
-    if target `elem` vertices then
-        (tail distances, vertices) : tail sorted
-    else do
-        let targetCircuit = filter (elem target . snd) sorted
-        let remainingDistances = sortOn fst (tail distances ++ (tail . fst . head $ targetCircuit))
-        let newVertices = vertices ++ (snd . head $ targetCircuit)
-        (remainingDistances, newVertices) : (filter (notElem target . snd) .  tail $ sorted)
+part1 :: String -> Int -> Int
+part1 s n = do
+    let input = map ((\x -> (head x, x !! 1, x !! 2)) . map read . splitOn ',') $ lines s ::[Vertex]
+    let distances = map head . group . sort . map (\(a,b,c) -> if b < c then (a,b,c) else (a,c,b)) . concatMap ((\y -> map (\x -> (fst x, snd x, snd y)) . fst $ y) . (\x -> (x `getDistances` input, x))) $ input ::[(Float,Vertex,Vertex)]
+    product
+        .take 3
+        .sortBy (comparing Down)
+        .map length
+        .createGroups (map (:[]) input)
+        .map (\(_,a,b) -> (a,b))
+        .take n $ distances
+
+part2 :: String -> Int
+part2 s = do
+    let input = map ((\x -> (head x, x !! 1, x !! 2)) . map read . splitOn ',') $ lines s ::[Vertex]
+    let distances = map head . group . sort . map (\(a,b,c) -> if b < c then (a,b,c) else (a,c,b)) . concatMap ((\y -> map (\x -> (fst x, snd x, snd y)) . fst $ y) . (\x -> (x `getDistances` input, x))) $ input ::[(Float,Vertex,Vertex)]
+    uncurry (*)
+        .Data.Bifunctor.bimap (float2Int . getX) (float2Int . getX) $
+            connectCircuit (map (:[]) input) (map (\(_,a,b) -> (a,b)) distances)
+
+
+connectCircuit :: [[Vertex]] -> [(Vertex, Vertex)] -> (Vertex,Vertex)
+connectCircuit _ [] = ((0,0,0),(0,0,0))
+connectCircuit vs (x:xs) = if (length . createGroups vs) [x] == 1 then x else connectCircuit (createGroups vs [x]) xs
+
+createGroups :: [[Vertex]] -> [(Vertex, Vertex)] -> [[Vertex]]
+createGroups vs [] = vs
+createGroups vs (x:xs) = do
+    let (first,second) = x
+    let firstGroup = concat $ filter (first `elem`) vs
+    let secondGroup = concat $ filter (second `elem`) vs
+    if firstGroup /= secondGroup then do
+        let rest = filter (\y -> not ((first `elem` y) || (second `elem` y))) vs
+        let newGroup = [firstGroup ++ secondGroup]
+        createGroups (rest ++ newGroup) xs
+    else
+        createGroups vs xs
 
 
 splitOn :: Char -> String -> [String]
